@@ -1,26 +1,30 @@
-# Stock Broker Client Web Dashboard
+# TradeNest - Stock Broker Client Web Dashboard
 
-A real-time stock price tracking dashboard built with React and Vite.
+A real-time stock trading dashboard built with React and Vite. This application allows users to manage multiple companies and accounts, subscribe to stocks, track live prices, and execute buy/sell transactions with comprehensive transaction history and statements.
 
-## Features
+## 🚀 Features
 
-✅ **Email Login** - Users can login using their email address  
+✅ **Multi-User Email Login** - Users can login using their email address  
+✅ **Company & Account Management** - Support for multiple companies, each with multiple accounts  
 ✅ **Stock Subscription** - Subscribe to multiple stocks (GOOG, TSLA, AMZN, META, NVDA)  
 ✅ **Real-time Price Updates** - Stock prices update every second without page refresh  
+✅ **Buy/Sell Functionality** - Execute trades with automatic balance and holdings management  
+✅ **Transaction History** - Complete transaction log with profit/loss tracking  
+✅ **Statements** - Date-range filtered statements showing buy/sell activity by company, account, and stock  
 ✅ **Multi-user Support** - Multiple users can have different stock subscriptions  
 ✅ **Asynchronous Updates** - Each user's dashboard updates independently  
-✅ **Random Price Generator** - Simulated stock prices using random number generator  
 
-## Prerequisites
+## 📋 Prerequisites
 
 - Node.js (v16 or later)
 - npm (comes with Node.js)
 
-## Installation
+## 🛠️ Installation
 
-1. Navigate to the project directory:
+1. Clone the repository:
    ```bash
-   cd Assignment_02
+   git clone https://github.com/neelkamalrana/TradeNest.git
+   cd TradeNest
    ```
 
 2. Install dependencies:
@@ -38,57 +42,67 @@ A real-time stock price tracking dashboard built with React and Vite.
    http://localhost:5173
    ```
 
-## Usage
+## 📁 Project Structure
+
+```
+TradeNest/
+├── public/
+│   ├── companiesData.json    # Companies, accounts, and initial holdings data
+│   └── vite.svg              # Vite logo
+│
+├── src/
+│   ├── Components/
+│   │   ├── BalanceCard.jsx           # Displays account balance
+│   │   ├── Dashboard.jsx             # Main dashboard container
+│   │   ├── HeaderControls.jsx        # Company/Account/Stock selection dropdowns
+│   │   ├── Login.jsx                 # Email login component
+│   │   ├── Sidebar.jsx               # Navigation sidebar
+│   │   ├── Statements.jsx            # Statements section with date filtering
+│   │   ├── StockCard.jsx             # Individual stock card with buy/sell
+│   │   ├── StockSubscription.jsx     # Stock subscription interface
+│   │   └── Transactions.jsx          # Transaction history component
+│   │
+│   ├── assets/
+│   │   └── logo.png                  # EazyPayouts logo
+│   │
+│   ├── App.jsx                       # Main app component with state management
+│   ├── App.css                       # Application styles
+│   ├── main.jsx                      # React entry point
+│   └── index.css                     # Global styles
+│
+├── .gitignore                        # Git ignore rules
+├── eslint.config.js                  # ESLint configuration
+├── index.html                        # HTML entry point
+├── package.json                      # Dependencies and scripts
+├── vite.config.js                    # Vite configuration
+└── README.md                         # This file
+```
+
+## 🎯 Usage
 
 ### Login
 - Enter your email address to login
 - Each email is treated as a separate user
-- Your subscriptions are saved in browser localStorage
+- Your selections are maintained during the session
 
-### Subscribe to Stocks
-1. Click on stock symbols (GOOG, TSLA, AMZN, META, NVDA) to select them
-2. Click "Subscribe" button to add them to your dashboard
-3. Stock prices will start updating in real-time (every second)
+### Company & Account Selection
+1. Select a **Company** from the dropdown in the top right
+2. Select an **Account** from the second dropdown
+3. The dashboard will display the account's balance and subscribed stocks
 
-### Unsubscribe from Stocks
-- Click the "×" button on any stock card to unsubscribe
-- The stock will be removed from your dashboard
+### Stock Management
+- **Subscribe**: Select a stock from the third dropdown to subscribe
+- **View Prices**: Real-time stock prices update every second
+- **Buy Stocks**: Click "Buy" on any stock card, enter quantity, and confirm
+- **Sell Stocks**: Click "Sell" on stocks you own, enter quantity, and confirm
+- **Unsubscribe**: Click the "×" button on any stock card
 
-### Multiple Users
-- Open the app in multiple browser tabs/windows
-- Login with different email addresses
-- Each user can subscribe to different stocks
-- Updates happen asynchronously for each user
+### Navigation
+- **Loads**: Main dashboard with stock cards and recent transactions
+- **Statements**: View aggregated buy/sell data by date range, company, account, and stock
+- **Transactions**: View complete transaction history
 
-## Technical Details
-
-- **Framework**: React 19
-- **Build Tool**: Vite
-- **State Management**: React Hooks (useState, useEffect)
-- **Price Updates**: Custom service using setInterval (updates every 1 second)
-- **Data Persistence**: localStorage for user data and subscriptions
-- **Price Simulation**: Random number generator with ±2% variation per update
-
-## Project Structure
-
-```
-Assignment_02/
-├── src/
-│   ├── Components/
-│   │   ├── Login.jsx          # Login component
-│   │   ├── Dashboard.jsx      # Main dashboard container
-│   │   ├── StockCard.jsx      # Individual stock card component
-│   │   └── StockSubscription.jsx  # Stock subscription interface
-│   ├── App.jsx                # Main app component with price service
-│   ├── App.css                # Application styles
-│   ├── main.jsx               # React entry point
-│   └── index.css              # Global styles
-├── package.json
-├── vite.config.js
-└── README.md
-```
-
-## Supported Stocks
+## 💹 Supported Stocks
 
 - **GOOG** - Google (Alphabet Inc.)
 - **TSLA** - Tesla Inc.
@@ -96,17 +110,71 @@ Assignment_02/
 - **META** - Meta Platforms Inc.
 - **NVDA** - NVIDIA Corporation
 
-## Build for Production
+## 📊 Features Details
 
-```bash
-npm run build
-```
+### Real-time Price Updates
+- Prices update every 1 second automatically
+- Uses random number generator with ±2% variation per update
+- Updates are account-specific and asynchronous
 
-The built files will be in the `dist` directory.
+### Buy/Sell Transactions
+- **Buy**: Deducts from balance, adds to holdings, calculates weighted average price
+- **Sell**: Adds to balance, reduces holdings, calculates profit/loss
+- **Validation**: Prevents buying with insufficient funds or selling without holdings
+- **Transaction History**: All trades are logged with date, type, quantity, price, total, and P/L
 
-## Preview Production Build
+### Statements
+- Filter by date range (default: last 30 days)
+- Filter by company and/or account
+- Shows aggregated data:
+  - Buy/Sell counts and quantities
+  - Total amounts
+  - Net profit/loss per stock
+- Summary statistics at the bottom
 
-```bash
-npm run preview
-```
+## 🔧 Technical Details
 
+- **Framework**: React 19
+- **Build Tool**: Vite 7
+- **State Management**: React Hooks (useState, useEffect)
+- **Price Updates**: Custom service using setInterval (updates every 1 second)
+- **Data Persistence**: In-memory (resets on refresh)
+- **Price Simulation**: Random number generator with ±2% variation per update
+- **Styling**: Custom CSS matching EazyPayouts design system
+
+## 📝 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+## 🎨 UI/UX
+
+The application follows the EazyPayouts design system:
+- Clean, modern interface
+- Left sidebar navigation
+- Top-right dropdown controls
+- Consistent color scheme (blues, oranges, greens)
+- Responsive design for mobile and desktop
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👤 Author
+
+**Neelkamal Rana**
+- GitHub: [@neelkamalrana](https://github.com/neelkamalrana)
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/neelkamalrana/TradeNest/issues).
+
+## 📧 Support
+
+If you have any questions or need help, please open an issue on GitHub.
+
+---
+
+**Note**: Stock prices are simulated using a random number generator. This is a demonstration project and does not use real stock market data.
