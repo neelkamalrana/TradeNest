@@ -1,0 +1,89 @@
+{
+  "companies": [
+    {
+      "id": "companyA",
+      "name": "Company A",
+      "accounts": [
+        {
+          "id": "acc1",
+          "name": "Account 1",
+          "subscribedStocks": ["GOOG", "TSLA"],
+          "balance": 50000.00,
+          "holdings": {
+            "GOOG": { "quantity": 10, "avgPrice": 150.50 },
+            "TSLA": { "quantity": 5, "avgPrice": 250.75 }
+          },
+          "transactions": []
+        },
+        {
+          "id": "acc2",
+          "name": "Account 2",
+          "subscribedStocks": ["AMZN", "META"],
+          "balance": 75000.00,
+          "holdings": {
+            "AMZN": { "quantity": 15, "avgPrice": 175.25 },
+            "META": { "quantity": 8, "avgPrice": 485.30 }
+          },
+          "transactions": []
+        }
+      ]
+    },
+    {
+      "id": "companyB",
+      "name": "Company B",
+      "accounts": [
+        {
+          "id": "acc3",
+          "name": "Company B - Acc 1",
+          "subscribedStocks": ["NVDA", "GOOG", "TSLA"],
+          "balance": 100000.00,
+          "holdings": {
+            "NVDA": { "quantity": 20, "avgPrice": 890.45 },
+            "GOOG": { "quantity": 12, "avgPrice": 150.50 },
+            "TSLA": { "quantity": 10, "avgPrice": 250.75 }
+          },
+          "transactions": []
+        },
+        {
+          "id": "acc4",
+          "name": "Company B - Acc 2",
+          "subscribedStocks": ["META", "AMZN"],
+          "balance": 85000.00,
+          "holdings": {
+            "META": { "quantity": 10, "avgPrice": 485.30 },
+            "AMZN": { "quantity": 20, "avgPrice": 175.25 }
+          },
+          "transactions": []
+        }
+      ]
+    },
+    {
+      "id": "companyC",
+      "name": "Company C",
+      "accounts": [
+        {
+          "id": "acc5",
+          "name": "Account 1",
+          "subscribedStocks": ["GOOG"],
+          "balance": 60000.00,
+          "holdings": {
+            "GOOG": { "quantity": 8, "avgPrice": 150.50 }
+          },
+          "transactions": []
+        },
+        {
+          "id": "acc6",
+          "name": "Account 2",
+          "subscribedStocks": ["TSLA", "NVDA", "META"],
+          "balance": 90000.00,
+          "holdings": {
+            "TSLA": { "quantity": 15, "avgPrice": 250.75 },
+            "NVDA": { "quantity": 12, "avgPrice": 890.45 },
+            "META": { "quantity": 6, "avgPrice": 485.30 }
+          },
+          "transactions": []
+        }
+      ]
+    }
+  ]
+}
