@@ -35,9 +35,22 @@ const Market = ({ accountStocks, stockPrices, stockPriceErrors, onSubscribe, fet
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [loadingSymbols, setLoadingSymbols] = useState(new Set());
   
+  // Debug: log when accountStocks changes
+  React.useEffect(() => {
+    console.log('Market component - accountStocks updated:', accountStocks);
+  }, [accountStocks]);
+  
   const handleSubscribe = (symbol) => {
+    console.log('Market handleSubscribe called:', symbol, 'accountStocks:', accountStocks, 'subscribedSet:', Array.from(subscribedSet));
     if (!subscribedSet.has(symbol)) {
-      onSubscribe(symbol);
+      console.log('Subscribing to stock:', symbol);
+      if (onSubscribe) {
+        onSubscribe(symbol);
+      } else {
+        console.error('onSubscribe function is not provided!');
+      }
+    } else {
+      console.log('Already subscribed to:', symbol);
     }
   };
 
@@ -112,7 +125,12 @@ const Market = ({ accountStocks, stockPrices, stockPriceErrors, onSubscribe, fet
               </div>
               
               <button
-                onClick={() => handleSubscribe(symbol)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('Button clicked for:', symbol, 'isSubscribed:', isSubscribed);
+                  handleSubscribe(symbol);
+                }}
                 disabled={isSubscribed}
                 className={`w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all ${
                   isSubscribed

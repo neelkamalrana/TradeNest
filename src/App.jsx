@@ -276,9 +276,12 @@ function App() {
           if (firstCompany.accounts && firstCompany.accounts.length > 0) {
             const firstAccount = firstCompany.accounts[0];
             
-            // Initialize holdings and transactions if they don't exist
+            // Initialize holdings, subscribedStocks, and transactions if they don't exist
             if (!firstAccount.holdings) {
               firstAccount.holdings = {};
+            }
+            if (!firstAccount.subscribedStocks) {
+              firstAccount.subscribedStocks = [];
             }
             if (!firstAccount.transactions) {
               firstAccount.transactions = [];
@@ -400,9 +403,24 @@ function App() {
 
   // Handle subscribe to new stock
   const handleSubscribe = (symbol) => {
-    if (!accountId || !currentAccount) return;
+    console.log('handleSubscribe called with:', symbol, { accountId, currentAccount, accountStocks });
     
+    if (!accountId || !currentAccount) {
+      console.error('Cannot subscribe: accountId or currentAccount is missing', { accountId, currentAccount });
+      alert('Account not loaded. Please refresh the page.');
+      return;
+    }
+    
+    // Check if already subscribed
+    if (accountStocks.includes(symbol)) {
+      console.log('Already subscribed to', symbol);
+      return;
+    }
+    
+    console.log('Adding subscription for:', symbol);
     const updatedStocks = [...new Set([...accountStocks, symbol])];
+    console.log('Updated stocks array:', updatedStocks);
+    
     setAccountStocks(updatedStocks);
     
     // Update current account
@@ -412,13 +430,22 @@ function App() {
     };
     setCurrentAccount(updatedAccount);
     
+    console.log('Subscribing to stock price service for:', symbol);
     // Subscribe to new stock
     stockPriceService.subscribe(
       accountId,
       [symbol],
-      (prices) => setStockPrices(prev => ({ ...prev, ...prices }))
+      (prices, errors) => {
+        console.log('Price update callback called:', { prices, errors });
+        setStockPrices(prev => ({ ...prev, ...prices }));
+        if (errors) {
+          setStockPriceErrors(prev => ({ ...prev, ...errors }));
+        }
+      }
     ).then(initialPrices => {
+      console.log('Initial prices received:', initialPrices);
       setStockPrices(prev => ({ ...prev, ...initialPrices }));
+      setStockPriceErrors(prev => ({ ...prev, ...(stockPriceService.priceErrors || {}) }));
     }).catch(err => {
       console.error('Failed to subscribe to stock:', err);
     });
