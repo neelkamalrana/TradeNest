@@ -1,17 +1,13 @@
 import React from 'react';
 
-const Transactions = ({ currentAccount }) => {
-  if (!currentAccount || !currentAccount.transactions || currentAccount.transactions.length === 0) {
-    return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-10 text-center text-slate-400">
-        No transactions found. Start trading to see your transaction history here.
-      </div>
-    );
+const RecentTransactions = ({ currentAccount }) => {
+  if (!currentAccount?.transactions || currentAccount.transactions.length === 0) {
+    return null;
   }
 
   return (
-    <div>
-      <h4 className="text-xl font-bold text-white mb-5">All Transactions</h4>
+    <div className="mt-10">
+      <h4 className="text-xl font-bold text-white mb-5">Recent Transactions</h4>
       <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -27,7 +23,7 @@ const Transactions = ({ currentAccount }) => {
               </tr>
             </thead>
             <tbody>
-              {currentAccount.transactions.map((transaction) => (
+              {currentAccount.transactions.slice(0, 5).map((transaction) => (
                 <tr key={transaction.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
                   <td className="px-4 py-3 text-slate-300">{transaction.date}</td>
                   <td className={`px-4 py-3 font-semibold ${
@@ -43,7 +39,7 @@ const Transactions = ({ currentAccount }) => {
                     transaction.profitLoss !== undefined 
                       ? (transaction.profitLoss >= 0 ? 'text-green-400' : 'text-red-400')
                       : 'text-slate-500'
-                  } ${transaction.profitLoss ? 'font-semibold' : ''}`}>
+                  }`}>
                     {transaction.profitLoss !== undefined 
                       ? `${transaction.profitLoss >= 0 ? '+' : ''}$${transaction.profitLoss.toFixed(2)}`
                       : '-'
@@ -59,5 +55,5 @@ const Transactions = ({ currentAccount }) => {
   );
 };
 
-export default Transactions;
+export default RecentTransactions;
 

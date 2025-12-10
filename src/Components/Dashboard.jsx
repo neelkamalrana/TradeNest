@@ -2,26 +2,39 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import HeaderControls from './HeaderControls';
 import StockCard from './StockCard';
+import PortfolioStockCard from './PortfolioStockCard';
 import BalanceCard from './BalanceCard';
 import Transactions from './Transactions';
 import Statements from './Statements';
+import Market from './Market';
+import SubscribedStocks from './SubscribedStocks';
+import RecentTransactions from './RecentTransactions';
 
 const STOCK_NAMES = {
   'GOOG': 'Google (Alphabet Inc.)',
   'TSLA': 'Tesla Inc.',
   'AMZN': 'Amazon.com Inc.',
   'META': 'Meta Platforms Inc.',
-  'NVDA': 'NVIDIA Corporation'
+  'NVDA': 'NVIDIA Corporation',
+  'AAPL': 'Apple Inc.',
+  'MSFT': 'Microsoft Corporation',
+  'NFLX': 'Netflix Inc.',
+  'AMD': 'Advanced Micro Devices',
+  'INTC': 'Intel Corporation',
+  'JPM': 'JPMorgan Chase & Co.',
+  'V': 'Visa Inc.',
+  'MA': 'Mastercard Inc.',
+  'DIS': 'The Walt Disney Company',
+  'NKE': 'Nike Inc.',
+  'WMT': 'Walmart Inc.',
+  'JNJ': 'Johnson & Johnson',
+  'PG': 'Procter & Gamble Co.',
+  'KO': 'The Coca-Cola Company',
+  'PEP': 'PepsiCo Inc.'
 };
 
 const Dashboard = ({ 
   user, 
-  companies,
-  companyId,
-  setCompanyId,
-  accounts,
-  accountId,
-  setAccountId,
   currentAccount,
   accountStocks,
   stockPrices,
@@ -32,7 +45,7 @@ const Dashboard = ({
   onLogout 
 }) => {
   const [priceHistory, setPriceHistory] = useState({});
-  const [currentSection, setCurrentSection] = useState('loads');
+  const [currentSection, setCurrentSection] = useState('market');
 
   // Track price changes for animation
   useEffect(() => {
@@ -56,113 +69,95 @@ const Dashboard = ({
   }, [stockPrices, accountStocks]);
 
   return (
-    <div className="app-root">
+    <div className="flex h-screen overflow-hidden bg-slate-900">
       <Sidebar 
         onLogout={onLogout} 
         currentSection={currentSection}
         setCurrentSection={setCurrentSection}
       />
-      <div className="main-area">
-        <HeaderControls
-          companies={companies}
-          companyId={companyId}
-          setCompanyId={setCompanyId}
-          accounts={accounts}
-          accountId={accountId}
-          setAccountId={setAccountId}
-          accountStocks={accountStocks}
-          onSubscribe={onSubscribe}
-        />
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {currentSection === 'subscribed' && (
+          <div className="p-6">
+            <HeaderControls
+              accountStocks={accountStocks}
+              onSubscribe={onSubscribe}
+            />
+          </div>
+        )}
 
-        <div className="content-body">
-          {currentSection === 'transactions' ? (
+        <div className="flex-1 px-6 pb-6">
+          {currentSection === 'market' ? (
+            <>
+              <Market
+                accountStocks={accountStocks}
+                stockPrices={stockPrices}
+                onSubscribe={onSubscribe}
+              />
+              <RecentTransactions currentAccount={currentAccount} />
+            </>
+          ) : currentSection === 'subscribed' ? (
+            <>
+              <SubscribedStocks
+                accountStocks={accountStocks}
+                stockPrices={stockPrices}
+                priceHistory={priceHistory}
+                onUnsubscribe={onUnsubscribe}
+                onBuy={onBuy}
+                onSell={onSell}
+                holdings={currentAccount?.holdings}
+                balance={currentAccount?.balance || 0}
+              />
+              <RecentTransactions currentAccount={currentAccount} />
+            </>
+          ) : currentSection === 'transactions' ? (
             <Transactions currentAccount={currentAccount} />
           ) : currentSection === 'statements' ? (
-            <Statements 
-              companies={companies}
-              companyId={companyId}
-              accountId={accountId}
-            />
-          ) : currentSection === 'loads' ? (
             <>
-              {!accountId ? (
-                <div className="placeholder">Select a company and account to view stock details.</div>
-              ) : (
-                <>
-                  {currentAccount && (
-                    <BalanceCard balance={currentAccount.balance} />
-                  )}
-                  <h4 className="section-title">Latest Stock Prices are displayed here</h4>
-                  {accountStocks.length === 0 ? (
-                    <div className="placeholder">No stocks subscribed. Select a stock from the dropdown above.</div>
-                  ) : (
-                    <>
-                      <div className="stocks-grid">
-                        {accountStocks.map(symbol => (
-                          <StockCard
-                            key={symbol}
-                            symbol={symbol}
-                            companyName={STOCK_NAMES[symbol]}
-                            price={stockPrices[symbol]}
-                            priceHistory={priceHistory[symbol]}
-                            onUnsubscribe={() => onUnsubscribe(symbol)}
-                            onBuy={onBuy}
-                            onSell={onSell}
-                            holdings={currentAccount?.holdings}
-                            balance={currentAccount?.balance || 0}
-                          />
-                        ))}
-                      </div>
-                      
-                      {currentAccount?.transactions && currentAccount.transactions.length > 0 && (
-                        <div style={{ marginTop: '40px' }}>
-                          <h4 className="section-title">Recent Transactions</h4>
-                          <div className="table-wrap">
-                            <table className="loads-table">
-                              <thead>
-                                <tr>
-                                  <th>Date</th>
-                                  <th>Type</th>
-                                  <th>Symbol</th>
-                                  <th>Quantity</th>
-                                  <th>Price</th>
-                                  <th>Total</th>
-                                  <th>P/L</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {currentAccount.transactions.slice(0, 5).map((transaction) => (
-                                  <tr key={transaction.id}>
-                                    <td>{transaction.date}</td>
-                                    <td style={{ 
-                                      color: transaction.type === 'BUY' ? '#008b48' : '#e74c3c',
-                                      fontWeight: '600'
-                                    }}>
-                                      {transaction.type}
-                                    </td>
-                                    <td>{transaction.symbol}</td>
-                                    <td>{transaction.quantity}</td>
-                                    <td>${transaction.price.toFixed(2)}</td>
-                                    <td>${transaction.total.toFixed(2)}</td>
-                                    <td style={{ 
-                                      color: transaction.profitLoss ? (transaction.profitLoss >= 0 ? '#008b48' : '#e74c3c') : '#666'
-                                    }}>
-                                      {transaction.profitLoss !== undefined 
-                                        ? `${transaction.profitLoss >= 0 ? '+' : ''}$${transaction.profitLoss.toFixed(2)}`
-                                        : '-'
-                                      }
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
+              <Statements 
+                currentAccount={currentAccount}
+              />
+              <RecentTransactions currentAccount={currentAccount} />
+            </>
+          ) : currentSection === 'portfolio' ? (
+            <>
+              {currentAccount && (
+                <BalanceCard balance={currentAccount.balance} />
               )}
+              <h4 className="text-xl font-bold text-white mt-6 mb-5">My Portfolio</h4>
+              {(() => {
+                // Filter to only show stocks that have been bought (have holdings)
+                const stocksWithHoldings = accountStocks.filter(symbol => {
+                  const holding = currentAccount?.holdings?.[symbol];
+                  return holding && holding.quantity > 0;
+                });
+
+                return stocksWithHoldings.length === 0 ? (
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-10 text-center text-slate-400">
+                    No stocks in your portfolio. Buy stocks from the Subscribed section to add them here.
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                      {stocksWithHoldings.map(symbol => (
+                        <PortfolioStockCard
+                          key={symbol}
+                          symbol={symbol}
+                          companyName={STOCK_NAMES[symbol]}
+                          price={stockPrices[symbol]}
+                          priceHistory={priceHistory[symbol]}
+                          onUnsubscribe={() => onUnsubscribe(symbol)}
+                          onBuy={onBuy}
+                          onSell={onSell}
+                          holdings={currentAccount?.holdings}
+                          balance={currentAccount?.balance || 0}
+                        />
+                      ))}
+                    </div>
+                  
+                    <RecentTransactions currentAccount={currentAccount} />
+                  </>
+                );
+              })()}
             </>
           ) : null}
         </div>

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const Statements = ({ companies, companyId, accountId }) => {
+const Statements = ({ currentAccount }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [filteredData, setFilteredData] = useState([]);
-  const [selectedCompany, setSelectedCompany] = useState(companyId || '');
-  const [selectedAccount, setSelectedAccount] = useState(accountId || '');
 
   // Set default date range (last 30 days)
   useEffect(() => {
@@ -19,33 +17,22 @@ const Statements = ({ companies, companyId, accountId }) => {
 
   // Generate statements when filters change
   useEffect(() => {
-    if (startDate && endDate && companies.length > 0) {
+    if (startDate && endDate && currentAccount) {
       generateStatements();
     }
-  }, [startDate, endDate, selectedCompany, selectedAccount, companies]);
+  }, [startDate, endDate, currentAccount]);
 
   const generateStatements = () => {
     const statements = [];
     
-    // Return early if no companies
-    if (!companies || companies.length === 0) {
+    // Return early if no account or transactions
+    if (!currentAccount || !currentAccount.transactions || currentAccount.transactions.length === 0) {
       setFilteredData([]);
       return;
     }
     
-    // Filter companies
-    const companiesToProcess = selectedCompany 
-      ? companies.filter(c => c.id === selectedCompany)
-      : companies;
-
-    companiesToProcess.forEach(company => {
-      // Filter accounts
-      const accountsToProcess = selectedAccount && selectedCompany
-        ? company.accounts.filter(a => a.id === selectedAccount)
-        : company.accounts;
-
-      accountsToProcess.forEach(account => {
-        if (!account.transactions || account.transactions.length === 0) return;
+    const account = currentAccount;
+    if (!account.transactions || account.transactions.length === 0) return;
 
         // Filter transactions by date range
         const dateFilteredTransactions = account.transactions.filter(transaction => {
@@ -131,94 +118,25 @@ const Statements = ({ companies, companyId, accountId }) => {
           }
         });
 
-        // Convert to array and add company/account info
-        Object.values(stockWiseData).forEach(stockData => {
-          statements.push({
-            company: company.name,
-            account: account.name,
-            ...stockData
-          });
-        });
+    // Convert to array
+    Object.values(stockWiseData).forEach(stockData => {
+      statements.push({
+        ...stockData
       });
     });
 
     setFilteredData(statements);
   };
 
-  const handleDateRangeChange = () => {
-    if (startDate && endDate && new Date(startDate) <= new Date(endDate)) {
-      generateStatements();
-    }
-  };
-
-  const allCompanies = companies;
-  const selectedCompanyData = allCompanies.find(c => c.id === selectedCompany);
-  const availableAccounts = selectedCompanyData?.accounts || [];
-
   return (
     <div>
-      <h4 className="section-title">Statements</h4>
+      <h4 className="text-xl font-bold text-white mb-5">Statements</h4>
       
       {/* Filters */}
-      <div style={{ 
-        background: 'white', 
-        padding: '20px', 
-        borderRadius: '8px', 
-        boxShadow: '0 0 5px rgba(0, 0, 0, 0.1)',
-        marginBottom: '30px'
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
-              Company
-            </label>
-            <select
-              value={selectedCompany}
-              onChange={(e) => {
-                setSelectedCompany(e.target.value);
-                setSelectedAccount(''); // Reset account when company changes
-              }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
-            >
-              <option value="">All Companies</option>
-              {allCompanies.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
-              Account
-            </label>
-            <select
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              disabled={!selectedCompany}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px',
-                opacity: selectedCompany ? 1 : 0.6
-              }}
-            >
-              <option value="">All Accounts</option>
-              {availableAccounts.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
+            <label className="block mb-2 font-medium text-slate-300 text-sm">
               Start Date
             </label>
             <input
@@ -226,18 +144,12 @@ const Statements = ({ companies, companyId, accountId }) => {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               max={endDate || undefined}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
+            <label className="block mb-2 font-medium text-slate-300 text-sm">
               End Date
             </label>
             <input
@@ -245,19 +157,13 @@ const Statements = ({ companies, companyId, accountId }) => {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               min={startDate || undefined}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
 
         {startDate && endDate && new Date(startDate) > new Date(endDate) && (
-          <div style={{ color: '#e74c3c', fontSize: '14px', marginTop: '10px' }}>
+          <div className="text-red-400 text-sm mt-3 bg-red-900/20 border border-red-800 rounded-lg p-3">
             Start date cannot be after end date
           </div>
         )}
@@ -265,108 +171,97 @@ const Statements = ({ companies, companyId, accountId }) => {
 
       {/* Statements Table */}
       {filteredData.length === 0 ? (
-        <div className="placeholder">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-10 text-center text-slate-400">
           {startDate && endDate 
             ? 'No transactions found for the selected date range and filters.'
             : 'Please select a date range to view statements.'
           }
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="loads-table">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Account</th>
-                <th>Stock</th>
-                <th>Buy Count</th>
-                <th>Buy Quantity</th>
-                <th>Buy Total</th>
-                <th>Sell Count</th>
-                <th>Sell Quantity</th>
-                <th>Sell Total</th>
-                <th>Net P/L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((row, index) => (
-                <tr key={`${row.company}-${row.account}-${row.symbol}-${index}`}>
-                  <td>{row.company}</td>
-                  <td>{row.account}</td>
-                  <td style={{ fontWeight: '600' }}>{row.symbol}</td>
-                  <td>{row.buyCount}</td>
-                  <td>{row.buyQuantity}</td>
-                  <td style={{ color: '#008b48' }}>${row.buyTotal.toFixed(2)}</td>
-                  <td>{row.sellCount}</td>
-                  <td>{row.sellQuantity}</td>
-                  <td style={{ color: '#e74c3c' }}>${row.sellTotal.toFixed(2)}</td>
-                  <td style={{ 
-                    color: row.totalProfitLoss >= 0 ? '#008b48' : '#e74c3c',
-                    fontWeight: '600'
-                  }}>
-                    {row.totalProfitLoss >= 0 ? '+' : ''}${row.totalProfitLoss.toFixed(2)}
-                  </td>
+        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-8">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Stock</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Buy Count</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Buy Quantity</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Buy Total</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Sell Count</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Sell Quantity</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Sell Total</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-200">Net P/L</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredData.map((row, index) => (
+                  <tr key={`${row.symbol}-${index}`} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                    <td className="px-4 py-3 text-slate-200 font-semibold">{row.symbol}</td>
+                    <td className="px-4 py-3 text-slate-300">{row.buyCount}</td>
+                    <td className="px-4 py-3 text-slate-300">{row.buyQuantity}</td>
+                    <td className="px-4 py-3 text-green-400">${row.buyTotal.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-slate-300">{row.sellCount}</td>
+                    <td className="px-4 py-3 text-slate-300">{row.sellQuantity}</td>
+                    <td className="px-4 py-3 text-red-400">${row.sellTotal.toFixed(2)}</td>
+                    <td className={`px-4 py-3 font-semibold ${
+                      row.totalProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {row.totalProfitLoss >= 0 ? '+' : ''}${row.totalProfitLoss.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Summary */}
       {filteredData.length > 0 && (
-        <div style={{ 
-          marginTop: '30px',
-          background: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '0 0 5px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h4 style={{ marginBottom: '15px', color: '#333' }}>Summary</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+        <div className="mt-8 bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <h4 className="mb-4 text-white font-bold text-lg">Summary</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Buy Transactions</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#333' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Buy Transactions</div>
+              <div className="text-lg font-bold text-white">
                 {filteredData.reduce((sum, row) => sum + row.buyCount, 0)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Sell Transactions</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#333' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Sell Transactions</div>
+              <div className="text-lg font-bold text-white">
                 {filteredData.reduce((sum, row) => sum + row.sellCount, 0)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Buy Quantity</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#008b48' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Buy Quantity</div>
+              <div className="text-lg font-bold text-green-400">
                 {filteredData.reduce((sum, row) => sum + row.buyQuantity, 0)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Sell Quantity</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#e74c3c' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Sell Quantity</div>
+              <div className="text-lg font-bold text-red-400">
                 {filteredData.reduce((sum, row) => sum + row.sellQuantity, 0)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Buy Amount</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#008b48' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Buy Amount</div>
+              <div className="text-lg font-bold text-green-400">
                 ${filteredData.reduce((sum, row) => sum + row.buyTotal, 0).toFixed(2)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Total Sell Amount</div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#e74c3c' }}>
+              <div className="text-xs text-slate-400 mb-2">Total Sell Amount</div>
+              <div className="text-lg font-bold text-red-400">
                 ${filteredData.reduce((sum, row) => sum + row.sellTotal, 0).toFixed(2)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Net Profit/Loss</div>
-              <div style={{ 
-                fontSize: '18px', 
-                fontWeight: '700',
-                color: filteredData.reduce((sum, row) => sum + row.totalProfitLoss, 0) >= 0 ? '#008b48' : '#e74c3c'
-              }}>
+              <div className="text-xs text-slate-400 mb-2">Net Profit/Loss</div>
+              <div className={`text-lg font-bold ${
+                filteredData.reduce((sum, row) => sum + row.totalProfitLoss, 0) >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
                 ${filteredData.reduce((sum, row) => sum + row.totalProfitLoss, 0).toFixed(2)}
               </div>
             </div>

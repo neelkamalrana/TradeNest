@@ -1,36 +1,172 @@
 import React, { useState, useEffect } from 'react';
 import Login from './Components/Login';
 import Dashboard from './Components/Dashboard';
-import './App.css';
 
-// Stock price simulator service
+// Stock price service with real API integration
 class StockPriceService {
   constructor() {
     this.subscribers = new Map(); // Map of accountId -> Set of stock symbols
     this.prices = new Map(); // Map of symbol -> price
-    this.basePrices = {
+    this.priceCallbacks = new Map(); // Map of accountId -> callback function
+    this.intervalId = null;
+    this.isUpdating = false; // Prevent concurrent updates
+    this.updateInterval = 10000; // Update every 10 seconds to respect API rate limits
+    this.apiKey = null; // Optional API key for Finnhub (can be set via environment variable)
+    
+    // Fallback prices in case API fails
+    this.fallbackPrices = {
       'GOOG': 150.50,
       'TSLA': 250.75,
       'AMZN': 175.25,
       'META': 485.30,
-      'NVDA': 890.45
+      'NVDA': 890.45,
+      'AAPL': 180.00,
+      'MSFT': 420.00,
+      'NFLX': 450.00,
+      'AMD': 120.00,
+      'INTC': 45.00,
+      'JPM': 150.00,
+      'V': 250.00,
+      'MA': 400.00,
+      'DIS': 100.00,
+      'NKE': 110.00,
+      'WMT': 160.00,
+      'JNJ': 160.00,
+      'PG': 150.00,
+      'KO': 60.00,
+      'PEP': 170.00
     };
-    this.priceCallbacks = new Map(); // Map of accountId -> callback function
-    this.intervalId = null;
     
-    // Initialize base prices
-    Object.keys(this.basePrices).forEach(symbol => {
-      this.prices.set(symbol, this.basePrices[symbol]);
+    // Initialize with fallback prices
+    Object.keys(this.fallbackPrices).forEach(symbol => {
+      this.prices.set(symbol, this.fallbackPrices[symbol]);
     });
+    
+    // Initialize all available stocks with fallback prices if not already set
+    const allStocks = [
+      'GOOG', 'TSLA', 'AMZN', 'META', 'NVDA', 
+      'AAPL', 'MSFT', 'NFLX', 'AMD', 'INTC',
+      'JPM', 'V', 'MA', 'DIS', 'NKE',
+      'WMT', 'JNJ', 'PG', 'KO', 'PEP'
+    ];
+    allStocks.forEach(symbol => {
+      if (!this.prices.has(symbol)) {
+        this.prices.set(symbol, this.fallbackPrices[symbol] || 0);
+      }
+    });
+  }
+
+  // Fetch real stock prices from API
+  async fetchStockPrices(symbols) {
+    const prices = {};
+    const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
+    
+    // Try Yahoo Finance API first (no API key required, more reliable)
+    try {
+      const fetchPromises = symbolsArray.map(async (symbol) => {
+        try {
+          // Use a CORS proxy or direct API call
+          const response = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
+            {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+              },
+            }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+            if (price && price > 0) {
+              console.log(`✓ Fetched price for ${symbol}: $${price.toFixed(2)}`);
+              return { symbol, price: parseFloat(price.toFixed(2)) };
+            }
+          } else {
+            console.warn(`Yahoo Finance API returned status ${response.status} for ${symbol}`);
+          }
+        } catch (err) {
+          console.warn(`Yahoo Finance failed for ${symbol}:`, err.message);
+        }
+        return null;
+      });
+      
+      const results = await Promise.all(fetchPromises);
+      results.forEach(result => {
+        if (result) {
+          prices[result.symbol] = result.price;
+        }
+      });
+      
+      // Fill in any missing prices with fallback
+      symbolsArray.forEach(symbol => {
+        if (!prices[symbol]) {
+          prices[symbol] = this.prices.get(symbol) || this.fallbackPrices[symbol] || 0;
+        }
+      });
+      
+      // If we got at least one price, return
+      if (Object.keys(prices).some(s => prices[s] > 0)) {
+        return prices;
+      }
+    } catch (error) {
+      console.warn('Yahoo Finance API failed, trying Finnhub:', error);
+    }
+    
+    // Fallback to Finnhub API (free tier: 60 calls/minute)
+    try {
+      const apiKey = this.apiKey || 'demo'; // 'demo' key works for limited requests
+      
+      const fetchPromises = symbolsArray.map(async (symbol) => {
+        try {
+          const response = await fetch(
+            `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.c && data.c > 0) {
+              return { symbol, price: parseFloat(data.c.toFixed(2)) };
+            }
+          }
+        } catch (err) {
+          console.warn(`Finnhub failed for ${symbol}:`, err);
+        }
+        return null;
+      });
+      
+      const results = await Promise.all(fetchPromises);
+      results.forEach(result => {
+        if (result && !prices[result.symbol]) {
+          prices[result.symbol] = result.price;
+        }
+      });
+    } catch (error) {
+      console.warn('Finnhub API also failed:', error);
+    }
+    
+    // Final fallback: use last known prices or default fallback prices
+    symbolsArray.forEach(symbol => {
+      if (!prices[symbol] || prices[symbol] === 0) {
+        prices[symbol] = this.prices.get(symbol) || this.fallbackPrices[symbol] || 0;
+      }
+    });
+    
+    return prices;
   }
 
   // Start price updates for all subscribers
   startUpdates() {
     if (this.intervalId) return;
     
+    // Fetch initial prices
+    this.updatePrices();
+    
+    // Set up interval for updates
     this.intervalId = setInterval(() => {
       this.updatePrices();
-    }, 1000); // Update every second
+    }, this.updateInterval);
   }
 
   // Stop price updates
@@ -41,48 +177,69 @@ class StockPriceService {
     }
   }
 
-  // Generate random price update
-  updatePrices() {
-    const symbols = Array.from(this.prices.keys());
+  // Fetch and update prices from API
+  async updatePrices() {
+    if (this.isUpdating) return; // Prevent concurrent updates
     
-    symbols.forEach(symbol => {
-      const currentPrice = this.prices.get(symbol);
-      const basePrice = this.basePrices[symbol];
+    const symbols = Array.from(this.prices.keys());
+    if (symbols.length === 0) return;
+    
+    this.isUpdating = true;
+    
+    try {
+      const newPrices = await this.fetchStockPrices(symbols);
       
-      // Generate random change between -2% and +2%
-      const changePercent = (Math.random() - 0.5) * 4;
-      const newPrice = currentPrice * (1 + changePercent / 100);
-      
-      // Keep price within reasonable bounds (50% to 150% of base)
-      const minPrice = basePrice * 0.5;
-      const maxPrice = basePrice * 1.5;
-      const clampedPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
-      
-      this.prices.set(symbol, parseFloat(clampedPrice.toFixed(2)));
-    });
-
-    // Notify all subscribers
-    this.priceCallbacks.forEach((callback, accountId) => {
-      const accountStocks = this.subscribers.get(accountId) || new Set();
-      const accountPrices = {};
-      accountStocks.forEach(symbol => {
-        accountPrices[symbol] = this.prices.get(symbol);
+      // Update prices map
+      Object.keys(newPrices).forEach(symbol => {
+        if (newPrices[symbol] > 0) {
+          this.prices.set(symbol, newPrices[symbol]);
+        }
       });
-      callback(accountPrices);
-    });
+      
+      // Notify all subscribers
+      this.priceCallbacks.forEach((callback, accountId) => {
+        const accountStocks = this.subscribers.get(accountId) || new Set();
+        const accountPrices = {};
+        accountStocks.forEach(symbol => {
+          accountPrices[symbol] = this.prices.get(symbol);
+        });
+        callback(accountPrices);
+      });
+    } catch (error) {
+      console.error('Error updating prices:', error);
+    } finally {
+      this.isUpdating = false;
+    }
   }
 
   // Subscribe account to stocks
-  subscribe(accountId, symbols, callback) {
+  async subscribe(accountId, symbols, callback) {
     if (!this.subscribers.has(accountId)) {
       this.subscribers.set(accountId, new Set());
     }
     
     symbols.forEach(symbol => {
       this.subscribers.get(accountId).add(symbol);
+      // Initialize price if not exists
+      if (!this.prices.has(symbol)) {
+        this.prices.set(symbol, this.fallbackPrices[symbol] || 0);
+      }
     });
     
     this.priceCallbacks.set(accountId, callback);
+    
+    // Fetch real prices for new symbols
+    try {
+      const newPrices = await this.fetchStockPrices(symbols);
+      Object.keys(newPrices).forEach(symbol => {
+        if (newPrices[symbol] > 0) {
+          this.prices.set(symbol, newPrices[symbol]);
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to fetch initial prices:', error);
+    }
+    
     this.startUpdates();
     
     // Return initial prices
@@ -136,80 +293,92 @@ class StockPriceService {
 // Singleton instance
 const stockPriceService = new StockPriceService();
 
+const AVAILABLE_STOCKS = [
+  'GOOG', 'TSLA', 'AMZN', 'META', 'NVDA', 
+  'AAPL', 'MSFT', 'NFLX', 'AMD', 'INTC',
+  'JPM', 'V', 'MA', 'DIS', 'NKE',
+  'WMT', 'JNJ', 'PG', 'KO', 'PEP'
+];
+
 function App() {
   const [user, setUser] = useState(null);
-  const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState("");
-  const [accountId, setAccountId] = useState("");
+  const [currentAccount, setCurrentAccount] = useState(null);
   const [accountStocks, setAccountStocks] = useState([]);
   const [stockPrices, setStockPrices] = useState({});
-  const [currentAccount, setCurrentAccount] = useState(null);
+  const [accountId, setAccountId] = useState("");
+  const [allStockPrices, setAllStockPrices] = useState({});
 
-  // Fetch companies data on mount
+  // Fetch and auto-load first company and account
   useEffect(() => {
     fetch("/companiesData.json")
       .then(res => res.json())
       .then(data => {
-        setCompanies(data.companies);
+        // Auto-select first company and first account
+        if (data.companies && data.companies.length > 0) {
+          const firstCompany = data.companies[0];
+          if (firstCompany.accounts && firstCompany.accounts.length > 0) {
+            const firstAccount = firstCompany.accounts[0];
+            
+            // Initialize holdings and transactions if they don't exist
+            if (!firstAccount.holdings) {
+              firstAccount.holdings = {};
+            }
+            if (!firstAccount.transactions) {
+              firstAccount.transactions = [];
+            }
+            
+            setCurrentAccount({ ...firstAccount });
+            setAccountId(firstAccount.id);
+            const stocks = firstAccount.subscribedStocks || [];
+            setAccountStocks(stocks);
+            
+            // Subscribe to stocks for this account
+            if (stocks.length > 0) {
+              stockPriceService.subscribe(
+                firstAccount.id,
+                stocks,
+                (prices) => setStockPrices(prices)
+              ).then(initialPrices => {
+                setStockPrices(initialPrices);
+              }).catch(err => {
+                console.error('Failed to subscribe to stocks:', err);
+                setStockPrices({});
+              });
+            } else {
+              setStockPrices({});
+            }
+          }
+        }
       })
       .catch(err => console.error("Failed to load companies data", err));
   }, []);
 
-  // Handle company selection
-  const handleCompanyChange = (selectedCompanyId) => {
-    setCompanyId(selectedCompanyId);
-    setAccountId("");
-    setCurrentAccount(null);
-    setAccountStocks([]);
-    setStockPrices({});
-    
-    // Unsubscribe previous account
-    if (accountId) {
-      stockPriceService.unsubscribeAll(accountId);
-    }
-  };
-
-  // Handle account selection
-  const handleAccountChange = (selectedAccountId) => {
-    if (!selectedAccountId) return;
-    
-    // Unsubscribe previous account
-    if (accountId) {
-      stockPriceService.unsubscribeAll(accountId);
-    }
-    
-    setAccountId(selectedAccountId);
-    
-    // Find selected account
-    const selectedCompany = companies.find(c => c.id === companyId);
-    const selectedAccount = selectedCompany?.accounts.find(a => a.id === selectedAccountId);
-    
-    if (selectedAccount) {
-      // Initialize holdings and transactions if they don't exist
-      if (!selectedAccount.holdings) {
-        selectedAccount.holdings = {};
+  // Fetch prices for all available stocks (for Market view)
+  useEffect(() => {
+    const fetchAllPrices = async () => {
+      try {
+        console.log('Fetching prices for all stocks:', AVAILABLE_STOCKS);
+        const prices = await stockPriceService.fetchStockPrices(AVAILABLE_STOCKS);
+        console.log('Fetched prices:', prices);
+        setAllStockPrices(prices);
+        
+        // Also update the prices map in the service for future use
+        Object.keys(prices).forEach(symbol => {
+          if (prices[symbol] > 0) {
+            stockPriceService.prices.set(symbol, prices[symbol]);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to fetch all stock prices:', err);
       }
-      if (!selectedAccount.transactions) {
-        selectedAccount.transactions = [];
-      }
-      
-      setCurrentAccount({ ...selectedAccount });
-      const stocks = selectedAccount.subscribedStocks || [];
-      setAccountStocks(stocks);
-      
-      // Subscribe to stocks for this account
-      if (stocks.length > 0) {
-        const initialPrices = stockPriceService.subscribe(
-          selectedAccountId,
-          stocks,
-          (prices) => setStockPrices(prices)
-        );
-        setStockPrices(initialPrices);
-      } else {
-        setStockPrices({});
-      }
-    }
-  };
+    };
+    
+    // Fetch immediately
+    fetchAllPrices();
+    // Update prices every 30 seconds for market view
+    const interval = setInterval(fetchAllPrices, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle login
   const handleLogin = (email) => {
@@ -223,7 +392,6 @@ function App() {
       stockPriceService.unsubscribeAll(accountId);
     }
     setUser(null);
-    setCompanyId("");
     setAccountId("");
     setCurrentAccount(null);
     setAccountStocks([]);
@@ -235,55 +403,47 @@ function App() {
   const handleSubscribe = (symbol) => {
     if (!accountId || !currentAccount) return;
     
-    // Update account data
-    const selectedCompany = companies.find(c => c.id === companyId);
-    const accountIndex = selectedCompany.accounts.findIndex(a => a.id === accountId);
+    const updatedStocks = [...new Set([...accountStocks, symbol])];
+    setAccountStocks(updatedStocks);
     
-    if (accountIndex !== -1) {
-      const updatedStocks = [...new Set([...accountStocks, symbol])];
-      selectedCompany.accounts[accountIndex].subscribedStocks = updatedStocks;
-      
-      setAccountStocks(updatedStocks);
-      
-      // Subscribe to new stock
-      const initialPrices = stockPriceService.subscribe(
-        accountId,
-        [symbol],
-        (prices) => setStockPrices(prev => ({ ...prev, ...prices }))
-      );
+    // Update current account
+    const updatedAccount = {
+      ...currentAccount,
+      subscribedStocks: updatedStocks
+    };
+    setCurrentAccount(updatedAccount);
+    
+    // Subscribe to new stock
+    stockPriceService.subscribe(
+      accountId,
+      [symbol],
+      (prices) => setStockPrices(prev => ({ ...prev, ...prices }))
+    ).then(initialPrices => {
       setStockPrices(prev => ({ ...prev, ...initialPrices }));
-      
-      // Update companies state
-      setCompanies([...companies]);
-    }
+    }).catch(err => {
+      console.error('Failed to subscribe to stock:', err);
+    });
   };
 
   // Handle unsubscribe from stock
   const handleUnsubscribe = (symbol) => {
     if (!accountId) return;
     
-    // Update account data
-    const selectedCompany = companies.find(c => c.id === companyId);
-    const accountIndex = selectedCompany.accounts.findIndex(a => a.id === accountId);
+    const updatedStocks = accountStocks.filter(s => s !== symbol);
+    setAccountStocks(updatedStocks);
     
-    if (accountIndex !== -1) {
-      const updatedStocks = accountStocks.filter(s => s !== symbol);
-      selectedCompany.accounts[accountIndex].subscribedStocks = updatedStocks;
-      
-      setAccountStocks(updatedStocks);
-      
-      // Unsubscribe from stock
-      stockPriceService.unsubscribe(accountId, [symbol]);
-      const newPrices = { ...stockPrices };
-      delete newPrices[symbol];
-      setStockPrices(newPrices);
-      
-      // Update companies state
-      setCompanies([...companies]);
-      if (currentAccount) {
-        setCurrentAccount({ ...selectedCompany.accounts[accountIndex] });
-      }
-    }
+    // Update current account
+    const updatedAccount = {
+      ...currentAccount,
+      subscribedStocks: updatedStocks
+    };
+    setCurrentAccount(updatedAccount);
+    
+    // Unsubscribe from stock
+    stockPriceService.unsubscribe(accountId, [symbol]);
+    const newPrices = { ...stockPrices };
+    delete newPrices[symbol];
+    setStockPrices(newPrices);
   };
 
   // Handle buy stock
@@ -298,66 +458,57 @@ function App() {
       return;
     }
     
-    // Update account data
-    const selectedCompany = companies.find(c => c.id === companyId);
-    const accountIndex = selectedCompany.accounts.findIndex(a => a.id === accountId);
-    
-    if (accountIndex !== -1) {
-      const account = selectedCompany.accounts[accountIndex];
-      
-      // Initialize holdings if needed
-      if (!account.holdings) {
-        account.holdings = {};
-      }
-      if (!account.transactions) {
-        account.transactions = [];
-      }
-      
-      // Update holdings
-      if (account.holdings[symbol]) {
-        const existingQuantity = account.holdings[symbol].quantity;
-        const existingAvgPrice = account.holdings[symbol].avgPrice;
-        const totalCostExisting = existingQuantity * existingAvgPrice;
-        const newTotalCost = quantity * price;
-        const newQuantity = existingQuantity + quantity;
-        const newAvgPrice = (totalCostExisting + newTotalCost) / newQuantity;
-        
-        account.holdings[symbol] = {
-          quantity: newQuantity,
-          avgPrice: newAvgPrice
-        };
-      } else {
-        account.holdings[symbol] = {
-          quantity: quantity,
-          avgPrice: price
-        };
-      }
-      
-      // Update balance
-      account.balance -= totalCost;
-      
-      // Add transaction
-      account.transactions.unshift({
-        id: Date.now().toString(),
-        type: 'BUY',
-        symbol: symbol,
-        quantity: quantity,
-        price: price,
-        total: totalCost,
-        date: new Date().toLocaleString('en-IN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        })
-      });
-      
-      // Update state
-      setCompanies([...companies]);
-      setCurrentAccount({ ...account });
+    // Initialize holdings if needed
+    if (!currentAccount.holdings) {
+      currentAccount.holdings = {};
     }
+    if (!currentAccount.transactions) {
+      currentAccount.transactions = [];
+    }
+    
+    // Update holdings
+    if (currentAccount.holdings[symbol]) {
+      const existingQuantity = currentAccount.holdings[symbol].quantity;
+      const existingAvgPrice = currentAccount.holdings[symbol].avgPrice;
+      const totalCostExisting = existingQuantity * existingAvgPrice;
+      const newTotalCost = quantity * price;
+      const newQuantity = existingQuantity + quantity;
+      const newAvgPrice = (totalCostExisting + newTotalCost) / newQuantity;
+      
+      currentAccount.holdings[symbol] = {
+        quantity: newQuantity,
+        avgPrice: newAvgPrice
+      };
+    } else {
+      currentAccount.holdings[symbol] = {
+        quantity: quantity,
+        avgPrice: price
+      };
+    }
+    
+    // Update balance
+    currentAccount.balance -= totalCost;
+    
+    // Add transaction
+    currentAccount.transactions.unshift({
+      id: Date.now().toString(),
+      type: 'BUY',
+      symbol: symbol,
+      quantity: quantity,
+      price: price,
+      total: totalCost,
+      date: new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    });
+    
+    // Update state
+    setCurrentAccount({ ...currentAccount });
   };
 
   // Handle sell stock
@@ -372,75 +523,77 @@ function App() {
       return;
     }
     
-    // Update account data
-    const selectedCompany = companies.find(c => c.id === companyId);
-    const accountIndex = selectedCompany.accounts.findIndex(a => a.id === accountId);
+    const totalRevenue = quantity * price;
     
-    if (accountIndex !== -1) {
-      const account = selectedCompany.accounts[accountIndex];
-      const totalRevenue = quantity * price;
-      
-      // Update holdings
-      if (holding.quantity === quantity) {
-        // Selling all shares
-        delete account.holdings[symbol];
-      } else {
-        account.holdings[symbol] = {
-          quantity: holding.quantity - quantity,
-          avgPrice: holding.avgPrice // Keep average price
-        };
-      }
-      
-      // Update balance
-      account.balance += totalRevenue;
-      
-      // Calculate profit/loss
-      const profitLoss = (price - holding.avgPrice) * quantity;
-      
-      // Add transaction
-      account.transactions.unshift({
-        id: Date.now().toString(),
-        type: 'SELL',
-        symbol: symbol,
-        quantity: quantity,
-        price: price,
-        total: totalRevenue,
-        profitLoss: profitLoss,
-        date: new Date().toLocaleString('en-IN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        })
-      });
-      
-      // Update state
-      setCompanies([...companies]);
-      setCurrentAccount({ ...account });
+    // Initialize transactions if needed
+    if (!currentAccount.transactions) {
+      currentAccount.transactions = [];
     }
+    
+    // Update holdings
+    if (holding.quantity === quantity) {
+      // Selling all shares
+      delete currentAccount.holdings[symbol];
+    } else {
+      currentAccount.holdings[symbol] = {
+        quantity: holding.quantity - quantity,
+        avgPrice: holding.avgPrice // Keep average price
+      };
+    }
+    
+    // Update balance
+    currentAccount.balance += totalRevenue;
+    
+    // Calculate profit/loss
+    const profitLoss = (price - holding.avgPrice) * quantity;
+    
+    // Add transaction
+    currentAccount.transactions.unshift({
+      id: Date.now().toString(),
+      type: 'SELL',
+      symbol: symbol,
+      quantity: quantity,
+      price: price,
+      total: totalRevenue,
+      profitLoss: profitLoss,
+      date: new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    });
+    
+    // Update state
+    setCurrentAccount({ ...currentAccount });
   };
 
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
 
-  const selectedCompany = companies.find(c => c.id === companyId);
-  const accounts = selectedCompany?.accounts || [];
+  // Merge subscribed stock prices with all stock prices for Market view
+  // Prioritize subscribed prices (real-time updates) over market prices
+  const mergedStockPrices = { ...allStockPrices, ...stockPrices };
+  
+  // Ensure all available stocks have at least fallback prices
+  AVAILABLE_STOCKS.forEach(symbol => {
+    if (!mergedStockPrices[symbol] || mergedStockPrices[symbol] === 0) {
+      const fallbackPrice = stockPriceService.fallbackPrices[symbol] || stockPriceService.prices.get(symbol) || 0;
+      if (fallbackPrice > 0) {
+        mergedStockPrices[symbol] = fallbackPrice;
+      }
+    }
+  });
 
   return (
     <Dashboard
       user={user}
-      companies={companies}
-      companyId={companyId}
-      setCompanyId={handleCompanyChange}
-      accounts={accounts}
-      accountId={accountId}
-      setAccountId={handleAccountChange}
       currentAccount={currentAccount}
       accountStocks={accountStocks}
-      stockPrices={stockPrices}
+      stockPrices={mergedStockPrices}
       onSubscribe={handleSubscribe}
       onUnsubscribe={handleUnsubscribe}
       onBuy={handleBuy}

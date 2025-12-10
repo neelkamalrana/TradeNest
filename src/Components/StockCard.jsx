@@ -34,72 +34,56 @@ const StockCard = ({ symbol, companyName, price, priceHistory, onUnsubscribe, on
   };
 
   return (
-    <div className="balance-card" style={{ position: 'relative', width: '100%', maxWidth: '700px' }}>
-      <div className="balance-icon">
-        <i className="fa-solid fa-chart-line"></i>
+    <div className="relative w-full max-w-3xl flex items-center gap-4 bg-slate-800 border border-slate-700 rounded-lg shadow-lg p-6">
+      <div className="bg-slate-700 rounded-xl p-4 flex items-center justify-center">
+        <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
       </div>
-      <div className="balance-text" style={{ flex: 1 }}>
-        <div className="balance-title">{symbol} - {companyName}</div>
-        <div className="balance-amount">
+      <div className="flex-1">
+        <div className="text-white text-lg font-bold mb-1">{symbol} - {companyName}</div>
+        <div className="text-green-400 text-2xl font-bold">
           ${price !== undefined ? price.toFixed(2) : '--.--'}
         </div>
         {change !== 0 && (
-          <div style={{ 
-            fontSize: '14px', 
-            color: isPositive ? '#008b48' : '#e74c3c',
-            marginTop: '4px',
-            fontWeight: '500'
-          }}>
+          <div className={`text-sm mt-1 font-medium ${
+            isPositive ? 'text-green-400' : 'text-red-400'
+          }`}>
             {isPositive ? '↑' : '↓'} ${Math.abs(change).toFixed(2)} ({Math.abs(changePercent)}%)
           </div>
         )}
         {holding.quantity > 0 && (
-          <div style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
+          <div className="mt-3 text-sm text-slate-400 space-y-1">
             <div>Holding: {holding.quantity} shares</div>
             <div>Avg Price: ${holding.avgPrice.toFixed(2)}</div>
             <div>Total Value: ${totalValue.toFixed(2)}</div>
-            <div style={{ color: profitLoss >= 0 ? '#008b48' : '#e74c3c', fontWeight: '600', marginTop: '4px' }}>
+            <div className={`font-semibold mt-1 ${
+              profitLoss >= 0 ? 'text-green-400' : 'text-red-400'
+            }`}>
               P/L: ${profitLoss >= 0 ? '+' : ''}{profitLoss.toFixed(2)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent}%)
             </div>
           </div>
         )}
       </div>
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+      <div className="flex flex-col gap-2 items-end">
         <button 
           onClick={onUnsubscribe}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#e74c3c',
-            fontSize: '24px',
-            cursor: 'pointer',
-            padding: '5px 10px',
-            lineHeight: '1'
-          }}
+          className="bg-transparent border-none text-red-400 text-2xl cursor-pointer p-2 hover:text-red-300 transition-colors"
           title="Unsubscribe"
         >
           ×
         </button>
         
         {!showTradeForm ? (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="flex gap-2">
             <button
               onClick={() => {
                 setTradeType('buy');
                 setShowTradeForm(true);
                 setQuantity(1);
               }}
-              style={{
-                padding: '8px 16px',
-                background: '#008b48',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '600'
-              }}
+              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white border-none rounded-lg cursor-pointer text-xs font-semibold transition-colors"
             >
               Buy
             </button>
@@ -110,58 +94,39 @@ const StockCard = ({ symbol, companyName, price, priceHistory, onUnsubscribe, on
                   setShowTradeForm(true);
                   setQuantity(1);
                 }}
-                style={{
-                  padding: '8px 16px',
-                  background: '#e74c3c',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white border-none rounded-lg cursor-pointer text-xs font-semibold transition-colors"
               >
                 Sell
               </button>
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end', minWidth: '150px' }}>
+          <div className="flex flex-col gap-2 items-end min-w-[150px]">
             <input
               type="number"
               min="1"
               max={tradeType === 'buy' ? maxBuyQuantity : maxSellQuantity}
               value={quantity}
               onChange={(e) => setQuantity(Math.max(1, Math.min(parseInt(e.target.value) || 1, tradeType === 'buy' ? maxBuyQuantity : maxSellQuantity)))}
-              style={{
-                width: '80px',
-                padding: '6px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '12px'
-              }}
+              className="w-20 px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <div style={{ fontSize: '11px', color: '#666', textAlign: 'right' }}>
+            <div className="text-xs text-slate-400 text-right">
               Max: {tradeType === 'buy' ? maxBuyQuantity : maxSellQuantity}
             </div>
-            <div style={{ fontSize: '11px', color: '#666', textAlign: 'right' }}>
+            <div className="text-xs text-slate-400 text-right">
               Total: ${((quantity || 0) * (price || 0)).toFixed(2)}
             </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <div className="flex gap-1">
               <button
                 onClick={tradeType === 'buy' ? handleBuy : handleSell}
                 disabled={quantity <= 0 || (tradeType === 'buy' && quantity > maxBuyQuantity) || (tradeType === 'sell' && quantity > maxSellQuantity)}
-                style={{
-                  padding: '6px 12px',
-                  background: tradeType === 'buy' ? '#008b48' : '#e74c3c',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  opacity: (quantity <= 0 || (tradeType === 'buy' && quantity > maxBuyQuantity) || (tradeType === 'sell' && quantity > maxSellQuantity)) ? 0.5 : 1
-                }}
+                className={`px-3 py-1.5 text-white border-none rounded cursor-pointer text-xs font-semibold transition-all ${
+                  tradeType === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                } ${
+                  (quantity <= 0 || (tradeType === 'buy' && quantity > maxBuyQuantity) || (tradeType === 'sell' && quantity > maxSellQuantity)) 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : ''
+                }`}
               >
                 {tradeType === 'buy' ? 'Buy' : 'Sell'}
               </button>
@@ -170,15 +135,7 @@ const StockCard = ({ symbol, companyName, price, priceHistory, onUnsubscribe, on
                   setShowTradeForm(false);
                   setQuantity(1);
                 }}
-                style={{
-                  padding: '6px 12px',
-                  background: '#f0f0f0',
-                  color: '#333',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px'
-                }}
+                className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white border-none rounded cursor-pointer text-xs transition-colors"
               >
                 Cancel
               </button>
