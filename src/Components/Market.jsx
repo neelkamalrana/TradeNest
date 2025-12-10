@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const STOCK_NAMES = {
   'GOOG': 'Google (Alphabet Inc.)',
@@ -30,12 +30,30 @@ const AVAILABLE_STOCKS = [
   'WMT', 'JNJ', 'PG', 'KO', 'PEP'
 ];
 
-const Market = ({ accountStocks, stockPrices, onSubscribe }) => {
+const Market = ({ accountStocks, stockPrices, stockPriceErrors, onSubscribe, fetchStockPriceOnDemand }) => {
   const subscribedSet = new Set(accountStocks);
+  const [hoveredSymbol, setHoveredSymbol] = useState(null);
+  const [loadingSymbols, setLoadingSymbols] = useState(new Set());
   
   const handleSubscribe = (symbol) => {
     if (!subscribedSet.has(symbol)) {
       onSubscribe(symbol);
+    }
+  };
+
+  const handleMouseEnter = async (symbol) => {
+    setHoveredSymbol(symbol);
+    // Only fetch if we don't have a price or have an error
+    if ((!stockPrices[symbol] || stockPriceErrors?.[symbol]) && !loadingSymbols.has(symbol)) {
+      setLoadingSymbols(prev => new Set(prev).add(symbol));
+      if (fetchStockPriceOnDemand) {
+        await fetchStockPriceOnDemand(symbol);
+      }
+      setLoadingSymbols(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(symbol);
+        return newSet;
+      });
     }
   };
 
@@ -50,6 +68,8 @@ const Market = ({ accountStocks, stockPrices, onSubscribe }) => {
         {AVAILABLE_STOCKS.map(symbol => {
           const isSubscribed = subscribedSet.has(symbol);
           const price = stockPrices[symbol];
+          const error = stockPriceErrors?.[symbol];
+          const isLoading = loadingSymbols.has(symbol);
           
           return (
             <div
@@ -59,6 +79,7 @@ const Market = ({ accountStocks, stockPrices, onSubscribe }) => {
                   ? 'border-green-500 bg-slate-800/80' 
                   : 'border-slate-700 hover:border-slate-600'
               }`}
+              onMouseEnter={() => handleMouseEnter(symbol)}
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -75,12 +96,18 @@ const Market = ({ accountStocks, stockPrices, onSubscribe }) => {
               </div>
               
               <div className="mb-4">
-                {price !== undefined ? (
+                {error ? (
+                  <div className="text-red-400 text-xs font-medium bg-red-900/20 border border-red-800 rounded p-2">
+                    ⚠️ {error}
+                  </div>
+                ) : price !== undefined && price > 0 ? (
                   <div className="text-green-400 text-xl font-bold">
                     ${price.toFixed(2)}
                   </div>
+                ) : isLoading ? (
+                  <div className="text-blue-400 text-sm">Fetching...</div>
                 ) : (
-                  <div className="text-slate-500 text-sm">Loading...</div>
+                  <div className="text-slate-500 text-sm">Hover to load price</div>
                 )}
               </div>
               

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PortfolioStockCard from './PortfolioStockCard';
 
 const STOCK_NAMES = {
@@ -27,13 +27,36 @@ const STOCK_NAMES = {
 const SubscribedStocks = ({ 
   accountStocks, 
   stockPrices, 
+  stockPriceErrors,
   priceHistory,
   onUnsubscribe,
   onBuy,
   onSell,
   holdings,
-  balance
+  balance,
+  fetchStockPriceOnDemand
 }) => {
+  // Update prices every 10 seconds for subscribed stocks
+  useEffect(() => {
+    if (accountStocks.length === 0 || !fetchStockPriceOnDemand) return;
+
+    const updatePrices = async () => {
+      // Fetch prices for all subscribed stocks
+      for (const symbol of accountStocks) {
+        await fetchStockPriceOnDemand(symbol);
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    };
+
+    // Update immediately
+    updatePrices();
+
+    // Then update every 10 seconds
+    const interval = setInterval(updatePrices, 10000);
+    return () => clearInterval(interval);
+  }, [accountStocks, fetchStockPriceOnDemand]);
+
   return (
     <div>
       <h4 className="text-xl font-bold text-white mb-5">Subscribed Stocks</h4>
@@ -54,6 +77,7 @@ const SubscribedStocks = ({
               companyName={STOCK_NAMES[symbol]}
               price={stockPrices[symbol]}
               priceHistory={priceHistory[symbol]}
+              priceError={stockPriceErrors?.[symbol]}
               onUnsubscribe={() => onUnsubscribe(symbol)}
               onBuy={onBuy}
               onSell={onSell}

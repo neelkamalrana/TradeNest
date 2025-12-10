@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const PortfolioStockCard = ({ symbol, companyName, price, priceHistory, onUnsubscribe, onBuy, onSell, holdings, balance }) => {
+const PortfolioStockCard = ({ symbol, companyName, price, priceHistory, priceError, onUnsubscribe, onBuy, onSell, holdings, balance }) => {
   const change = priceHistory?.change || 0;
   const previousPrice = priceHistory?.previous || price;
   const changePercent = previousPrice ? ((change / previousPrice) * 100).toFixed(2) : 0;
@@ -54,7 +54,11 @@ const PortfolioStockCard = ({ symbol, companyName, price, priceHistory, onUnsubs
 
       {/* Price */}
       <div className="mb-3">
-        {price !== undefined ? (
+        {priceError ? (
+          <div className="text-red-400 text-sm font-medium bg-red-900/20 border border-red-800 rounded p-2">
+            ⚠️ {priceError}
+          </div>
+        ) : price !== undefined && price > 0 ? (
           <>
             <div className="text-green-400 text-xl font-bold">
               ${price.toFixed(2)}

@@ -12,148 +12,83 @@ class StockPriceService {
     this.isUpdating = false; // Prevent concurrent updates
     this.updateInterval = 10000; // Update every 10 seconds to respect API rate limits
     this.apiKey = null; // Optional API key for Finnhub (can be set via environment variable)
-    
-    // Fallback prices in case API fails
-    this.fallbackPrices = {
-      'GOOG': 150.50,
-      'TSLA': 250.75,
-      'AMZN': 175.25,
-      'META': 485.30,
-      'NVDA': 890.45,
-      'AAPL': 180.00,
-      'MSFT': 420.00,
-      'NFLX': 450.00,
-      'AMD': 120.00,
-      'INTC': 45.00,
-      'JPM': 150.00,
-      'V': 250.00,
-      'MA': 400.00,
-      'DIS': 100.00,
-      'NKE': 110.00,
-      'WMT': 160.00,
-      'JNJ': 160.00,
-      'PG': 150.00,
-      'KO': 60.00,
-      'PEP': 170.00
-    };
-    
-    // Initialize with fallback prices
-    Object.keys(this.fallbackPrices).forEach(symbol => {
-      this.prices.set(symbol, this.fallbackPrices[symbol]);
-    });
-    
-    // Initialize all available stocks with fallback prices if not already set
-    const allStocks = [
-      'GOOG', 'TSLA', 'AMZN', 'META', 'NVDA', 
-      'AAPL', 'MSFT', 'NFLX', 'AMD', 'INTC',
-      'JPM', 'V', 'MA', 'DIS', 'NKE',
-      'WMT', 'JNJ', 'PG', 'KO', 'PEP'
-    ];
-    allStocks.forEach(symbol => {
-      if (!this.prices.has(symbol)) {
-        this.prices.set(symbol, this.fallbackPrices[symbol] || 0);
-      }
-    });
+    this.priceErrors = {}; // Map of symbol -> error message
   }
 
-  // Fetch real stock prices from API
+  // Fetch real stock prices from Yahoo Finance API only
   async fetchStockPrices(symbols) {
     const prices = {};
+    const errors = {};
     const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
     
-    // Try Yahoo Finance API first (no API key required, more reliable)
-    try {
-      const fetchPromises = symbolsArray.map(async (symbol) => {
+    const fetchPromises = symbolsArray.map(async (symbol) => {
+      try {
+        // Try direct API call first
+        let response;
+        let useProxy = false;
+        
         try {
-          // Use a CORS proxy or direct API call
-          const response = await fetch(
+          response = await fetch(
             `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
             {
               method: 'GET',
+              mode: 'cors',
               headers: {
                 'Accept': 'application/json',
               },
             }
           );
-          
-          if (response.ok) {
-            const data = await response.json();
-            const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-            if (price && price > 0) {
-              console.log(`✓ Fetched price for ${symbol}: $${price.toFixed(2)}`);
-              return { symbol, price: parseFloat(price.toFixed(2)) };
-            }
+        } catch (corsError) {
+          // If CORS fails, try using a public CORS proxy
+          useProxy = true;
+          try {
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`)}`;
+            response = await fetch(proxyUrl);
+          } catch (proxyError) {
+            throw new Error('Unable to fetch live prices. API request failed.');
+          }
+        }
+        
+        if (response.ok) {
+          let data;
+          if (useProxy) {
+            const proxyData = await response.json();
+            data = JSON.parse(proxyData.contents);
           } else {
-            console.warn(`Yahoo Finance API returned status ${response.status} for ${symbol}`);
+            data = await response.json();
           }
-        } catch (err) {
-          console.warn(`Yahoo Finance failed for ${symbol}:`, err.message);
-        }
-        return null;
-      });
-      
-      const results = await Promise.all(fetchPromises);
-      results.forEach(result => {
-        if (result) {
-          prices[result.symbol] = result.price;
-        }
-      });
-      
-      // Fill in any missing prices with fallback
-      symbolsArray.forEach(symbol => {
-        if (!prices[symbol]) {
-          prices[symbol] = this.prices.get(symbol) || this.fallbackPrices[symbol] || 0;
-        }
-      });
-      
-      // If we got at least one price, return
-      if (Object.keys(prices).some(s => prices[s] > 0)) {
-        return prices;
-      }
-    } catch (error) {
-      console.warn('Yahoo Finance API failed, trying Finnhub:', error);
-    }
-    
-    // Fallback to Finnhub API (free tier: 60 calls/minute)
-    try {
-      const apiKey = this.apiKey || 'demo'; // 'demo' key works for limited requests
-      
-      const fetchPromises = symbolsArray.map(async (symbol) => {
-        try {
-          const response = await fetch(
-            `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`
-          );
           
-          if (response.ok) {
-            const data = await response.json();
-            if (data.c && data.c > 0) {
-              return { symbol, price: parseFloat(data.c.toFixed(2)) };
-            }
+          const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if (price && price > 0) {
+            console.log(`✓ Fetched price for ${symbol}: $${price.toFixed(2)}`);
+            return { symbol, price: parseFloat(price.toFixed(2)), error: null };
+          } else {
+            throw new Error('Invalid price data received from API');
           }
-        } catch (err) {
-          console.warn(`Finnhub failed for ${symbol}:`, err);
+        } else {
+          if (response.status === 429) {
+            throw new Error('Rate limit exceeded. Please try again later.');
+          } else {
+            throw new Error(`API returned status ${response.status}`);
+          }
         }
-        return null;
-      });
-      
-      const results = await Promise.all(fetchPromises);
-      results.forEach(result => {
-        if (result && !prices[result.symbol]) {
-          prices[result.symbol] = result.price;
-        }
-      });
-    } catch (error) {
-      console.warn('Finnhub API also failed:', error);
-    }
-    
-    // Final fallback: use last known prices or default fallback prices
-    symbolsArray.forEach(symbol => {
-      if (!prices[symbol] || prices[symbol] === 0) {
-        prices[symbol] = this.prices.get(symbol) || this.fallbackPrices[symbol] || 0;
+      } catch (err) {
+        const errorMessage = err.message || 'Unable to fetch live prices';
+        console.error(`Yahoo Finance failed for ${symbol}:`, errorMessage);
+        return { symbol, price: null, error: errorMessage };
       }
     });
     
-    return prices;
+    const results = await Promise.all(fetchPromises);
+    results.forEach(result => {
+      if (result.price !== null) {
+        prices[result.symbol] = result.price;
+      } else {
+        errors[result.symbol] = result.error;
+      }
+    });
+    
+    return { prices, errors };
   }
 
   // Start price updates for all subscribers
@@ -187,23 +122,26 @@ class StockPriceService {
     this.isUpdating = true;
     
     try {
-      const newPrices = await this.fetchStockPrices(symbols);
+      const { prices: newPrices, errors } = await this.fetchStockPrices(symbols);
       
-      // Update prices map
+      // Update prices map (only for successful fetches)
       Object.keys(newPrices).forEach(symbol => {
         if (newPrices[symbol] > 0) {
           this.prices.set(symbol, newPrices[symbol]);
         }
       });
       
-      // Notify all subscribers
+      // Store errors for display
+      this.priceErrors = errors;
+      
+      // Notify all subscribers with prices and errors
       this.priceCallbacks.forEach((callback, accountId) => {
         const accountStocks = this.subscribers.get(accountId) || new Set();
         const accountPrices = {};
         accountStocks.forEach(symbol => {
           accountPrices[symbol] = this.prices.get(symbol);
         });
-        callback(accountPrices);
+        callback(accountPrices, errors);
       });
     } catch (error) {
       console.error('Error updating prices:', error);
@@ -230,12 +168,14 @@ class StockPriceService {
     
     // Fetch real prices for new symbols
     try {
-      const newPrices = await this.fetchStockPrices(symbols);
+      const { prices: newPrices, errors } = await this.fetchStockPrices(symbols);
       Object.keys(newPrices).forEach(symbol => {
         if (newPrices[symbol] > 0) {
           this.prices.set(symbol, newPrices[symbol]);
         }
       });
+      // Store errors
+      this.priceErrors = { ...this.priceErrors, ...errors };
     } catch (error) {
       console.warn('Failed to fetch initial prices:', error);
     }
@@ -288,6 +228,21 @@ class StockPriceService {
     });
     return prices;
   }
+
+  // Fetch single stock price (for hover/on-demand updates)
+  async fetchSingleStockPrice(symbol) {
+    try {
+      const { prices, errors } = await this.fetchStockPrices([symbol]);
+      if (prices[symbol]) {
+        this.prices.set(symbol, prices[symbol]);
+        return { price: prices[symbol], error: null };
+      } else {
+        return { price: null, error: errors[symbol] || 'Unable to fetch live price' };
+      }
+    } catch (error) {
+      return { price: null, error: 'Unable to fetch live price' };
+    }
+  }
 }
 
 // Singleton instance
@@ -305,8 +260,10 @@ function App() {
   const [currentAccount, setCurrentAccount] = useState(null);
   const [accountStocks, setAccountStocks] = useState([]);
   const [stockPrices, setStockPrices] = useState({});
+  const [stockPriceErrors, setStockPriceErrors] = useState({});
   const [accountId, setAccountId] = useState("");
   const [allStockPrices, setAllStockPrices] = useState({});
+  const [allStockPriceErrors, setAllStockPriceErrors] = useState({});
 
   // Fetch and auto-load first company and account
   useEffect(() => {
@@ -337,15 +294,23 @@ function App() {
               stockPriceService.subscribe(
                 firstAccount.id,
                 stocks,
-                (prices) => setStockPrices(prices)
+                (prices, errors) => {
+                  setStockPrices(prices);
+                  if (errors) {
+                    setStockPriceErrors(errors);
+                  }
+                }
               ).then(initialPrices => {
                 setStockPrices(initialPrices);
+                setStockPriceErrors(stockPriceService.priceErrors || {});
               }).catch(err => {
                 console.error('Failed to subscribe to stocks:', err);
                 setStockPrices({});
+                setStockPriceErrors({});
               });
             } else {
               setStockPrices({});
+              setStockPriceErrors({});
             }
           }
         }
@@ -357,10 +322,13 @@ function App() {
   useEffect(() => {
     const fetchAllPrices = async () => {
       try {
-        console.log('Fetching prices for all stocks:', AVAILABLE_STOCKS);
-        const prices = await stockPriceService.fetchStockPrices(AVAILABLE_STOCKS);
-        console.log('Fetched prices:', prices);
+        console.log('🔄 Fetching prices for all stocks:', AVAILABLE_STOCKS);
+        const { prices, errors } = await stockPriceService.fetchStockPrices(AVAILABLE_STOCKS);
+        console.log('✅ Fetched prices:', prices);
+        console.log('⚠️ Errors:', errors);
+        
         setAllStockPrices(prices);
+        setAllStockPriceErrors(errors || {});
         
         // Also update the prices map in the service for future use
         Object.keys(prices).forEach(symbol => {
@@ -369,7 +337,7 @@ function App() {
           }
         });
       } catch (err) {
-        console.error('Failed to fetch all stock prices:', err);
+        console.error('❌ Failed to fetch all stock prices:', err);
       }
     };
     
@@ -379,6 +347,37 @@ function App() {
     const interval = setInterval(fetchAllPrices, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Function to fetch single stock price on demand (for hover and subscribed updates)
+  const fetchStockPriceOnDemand = async (symbol) => {
+    const { price, error } = await stockPriceService.fetchSingleStockPrice(symbol);
+    if (price) {
+      // Update all stock prices (for Market view)
+      setAllStockPrices(prev => ({ ...prev, [symbol]: price }));
+      // Update subscribed stock prices if this symbol is subscribed
+      if (accountStocks.includes(symbol)) {
+        setStockPrices(prev => ({ ...prev, [symbol]: price }));
+        setStockPriceErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[symbol];
+          return newErrors;
+        });
+      }
+      // Clear error from all stock price errors
+      setAllStockPriceErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[symbol];
+        return newErrors;
+      });
+    } else if (error) {
+      // Set error for all stock prices
+      setAllStockPriceErrors(prev => ({ ...prev, [symbol]: error }));
+      // Set error for subscribed stock prices if this symbol is subscribed
+      if (accountStocks.includes(symbol)) {
+        setStockPriceErrors(prev => ({ ...prev, [symbol]: error }));
+      }
+    }
+  };
 
   // Handle login
   const handleLogin = (email) => {
@@ -577,16 +576,7 @@ function App() {
   // Merge subscribed stock prices with all stock prices for Market view
   // Prioritize subscribed prices (real-time updates) over market prices
   const mergedStockPrices = { ...allStockPrices, ...stockPrices };
-  
-  // Ensure all available stocks have at least fallback prices
-  AVAILABLE_STOCKS.forEach(symbol => {
-    if (!mergedStockPrices[symbol] || mergedStockPrices[symbol] === 0) {
-      const fallbackPrice = stockPriceService.fallbackPrices[symbol] || stockPriceService.prices.get(symbol) || 0;
-      if (fallbackPrice > 0) {
-        mergedStockPrices[symbol] = fallbackPrice;
-      }
-    }
-  });
+  const mergedStockPriceErrors = { ...allStockPriceErrors, ...stockPriceErrors };
 
   return (
     <Dashboard
@@ -594,11 +584,13 @@ function App() {
       currentAccount={currentAccount}
       accountStocks={accountStocks}
       stockPrices={mergedStockPrices}
+      stockPriceErrors={mergedStockPriceErrors}
       onSubscribe={handleSubscribe}
       onUnsubscribe={handleUnsubscribe}
       onBuy={handleBuy}
       onSell={handleSell}
       onLogout={handleLogout}
+      fetchStockPriceOnDemand={fetchStockPriceOnDemand}
     />
   );
 }

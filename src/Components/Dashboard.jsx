@@ -38,11 +38,13 @@ const Dashboard = ({
   currentAccount,
   accountStocks,
   stockPrices,
+  stockPriceErrors,
   onSubscribe,
   onUnsubscribe,
   onBuy,
   onSell,
-  onLogout 
+  onLogout,
+  fetchStockPriceOnDemand
 }) => {
   const [priceHistory, setPriceHistory] = useState({});
   const [currentSection, setCurrentSection] = useState('market');
@@ -91,7 +93,9 @@ const Dashboard = ({
               <Market
                 accountStocks={accountStocks}
                 stockPrices={stockPrices}
+                stockPriceErrors={stockPriceErrors}
                 onSubscribe={onSubscribe}
+                fetchStockPriceOnDemand={fetchStockPriceOnDemand}
               />
               <RecentTransactions currentAccount={currentAccount} />
             </>
@@ -100,12 +104,14 @@ const Dashboard = ({
               <SubscribedStocks
                 accountStocks={accountStocks}
                 stockPrices={stockPrices}
+                stockPriceErrors={stockPriceErrors}
                 priceHistory={priceHistory}
                 onUnsubscribe={onUnsubscribe}
                 onBuy={onBuy}
                 onSell={onSell}
                 holdings={currentAccount?.holdings}
                 balance={currentAccount?.balance || 0}
+                fetchStockPriceOnDemand={fetchStockPriceOnDemand}
               />
               <RecentTransactions currentAccount={currentAccount} />
             </>
@@ -145,6 +151,7 @@ const Dashboard = ({
                           companyName={STOCK_NAMES[symbol]}
                           price={stockPrices[symbol]}
                           priceHistory={priceHistory[symbol]}
+                          priceError={stockPriceErrors?.[symbol]}
                           onUnsubscribe={() => onUnsubscribe(symbol)}
                           onBuy={onBuy}
                           onSell={onSell}
